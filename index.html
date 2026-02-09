@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ascent First — Coming Soon</title>
+
+  <!-- Nudito Sans Light -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nudito+Sans:wght@300&display=swap" rel="stylesheet">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Nudito Sans', sans-serif;
+      background: #000;
+      overflow-x: hidden;
+    }
+
+    .hero {
+      position: relative;
+      width: 100%;
+
+      /* Mobile-safe fullscreen */
+      min-height: 100vh;   /* fallback */
+      min-height: 100svh;  /* iOS/modern browsers: stable viewport */
+      height: 100vh;       /* fallback */
+      height: 100dvh;      /* dynamic viewport (best on mobile) */
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden; /* fine now; snow is fixed canvas */
+    }
+
+    /* Parallax background layer */
+    .bg {
+      position: absolute;
+      inset: -6vh -4vw; /* overscan so parallax never shows edges */
+      background-image: url("/img/af_bg_range.png");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      transform: translate3d(0, 0, 0) scale(1.06);
+      will-change: transform;
+      z-index: 0;
+    }
+
+    /* Black overlay as a real element (prevents mobile cutoff bugs) */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.45),
+        rgba(0,0,0,0.65)
+      );
+      z-index: 1;
+    }
+
+    .content {
+      position: relative;
+      z-index: 3;
+      text-align: center;
+      color: #ffffff;
+      padding: 24px;
+    }
+
+    /* Fade-in animation */
+    .logo {
+      max-width: 320px;
+      width: 70%;
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: fadeInUp 900ms ease-out forwards;
+    }
+
+    .coming-soon {
+      font-weight: 300;
+      font-size: 18px;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: fadeInUp 900ms ease-out forwards;
+      animation-delay: 180ms;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (min-width: 768px) {
+      .logo { max-width: 420px; }
+      .coming-soon { font-size: 20px; }
+    }
+
+    /* Snow canvas sits above overlay but below content if you want;
+       here we put it ABOVE overlay and BELOW content (z-index 2). */
+    #snow {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Respect reduced-motion accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      .logo, .coming-soon {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+      }
+      .bg {
+        transform: none !important;
+      }
+      #snow {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="hero">
+    <div class="bg" id="bg" aria-hidden="true"></div>
+    <div class="overlay" aria-hidden="true"></div>
+
+    <div class="content">
+      <img
+        src="/img/af_logo_white.png"
+        alt="Ascent First Logo"
+        class="logo"
+      />
+      <div class="coming-soon">Coming Soon</div>
+    </div>
+  </div>
+
+  <!-- Snow canvas -->
+  <canvas id="snow" aria-hidden="true"></canvas>
+
+  <script>
+    // Subtle Snow (tiny canvas implementation)
+    (function () {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) return;
+
+      const canvas = document.getElementById('snow');
+      const ctx = canvas.getContext('2d', { alpha: true });
+
+      let w = 0, h = 0, dpr = 1;
+      let flakes = [];
+      let rafId = null;
+
+      function resize() {
+        dpr = window.devicePixelRatio || 1;
+        w = Math.floor(window.innerWidth);
+        h = Math.floor(window.innerHeight);
+
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Re-seed flakes on resize
+        const targetCount = Math.max(24, Math.min(60, Math.floor(w / 22)));
+        flakes = Array.from({ length: targetCount }, () => makeFlake(true));
+      }
+
+      function makeFlake(randomY) {
+        return {
+          x: Math.random() * w,
+          y: randomY ? Math.random() * h : -10 - Math.random() * 50,
+          r: 0.8 + Math.random() * 1.8,   // small flakes
+          vy: 0.35 + Math.random() * 0.9, // slow fall
+          vx: -0.25 + Math.random() * 0.5,// tiny drift
+          a: 0.18 + Math.random() * 0.25  // subtle opacity
+        };
+      }
+
+      function step() {
+        ctx.clearRect(0, 0, w, h);
+
+        for (let i = 0; i < flakes.length; i++) {
+          const f = flakes[i];
+          f.x += f.vx;
+          f.y += f.vy;
+
+          // wrap
+          if (f.y > h + 10) flakes[i] = makeFlake(false);
+          if (f.x < -10) f.x = w + 10;
+          if (f.x > w + 10) f.x = -10;
+
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,255,255,${f.a})`;
+          ctx.fill();
+        }
+
+        rafId = requestAnimationFrame(step);
+      }
+
+      window.addEventListener('resize', resize, { passive: true });
+
+      resize();
+      step();
+    })();
+  </script>
+
+  <script>
+    // Subtle parallax for background (keeps it lightweight)
+    (function () {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) return;
+
+      const bg = document.getElementById('bg');
+      let ticking = false;
+
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+
+        requestAnimationFrame(() => {
+          const y = window.scrollY || 0;
+          const offset = Math.min(y * 0.10, 70);
+          bg.style.transform = `translate3d(0, ${offset * -1}px, 0) scale(1.06)`;
+          ticking = false;
+        });
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+  </script>
+
+</body>
+</html>
